@@ -23,7 +23,7 @@ class DetalheOrdemView extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 ElevatedButton.icon(
-                  onPressed: () => Navigator.pushNamed(context, AppRoutes.assinatura),
+                  onPressed: () => Navigator.pushNamed(context, AppRoutes.assinaturas),
                   icon: const Icon(Icons.edit_document),
                   label: const Text('Assinar'),
                 ),

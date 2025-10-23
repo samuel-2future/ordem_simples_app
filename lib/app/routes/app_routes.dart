@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:ordem_simples_app/presentation/views/assinaturas_view.dart';
 import '../../presentation/views/splash_view.dart';
 import '../../presentation/views/home_view.dart';
 import '../../presentation/views/clientes_view.dart';
@@ -17,6 +18,7 @@ class AppRoutes {
   static const novaOrdem = '/novaOrdem';
   static const detalheOrdem = '/detalheOrdem';
   static const assinatura = '/assinatura';
+  static const assinaturas = '/assinaturas';
 
   static Map<String, WidgetBuilder> routes = {
     splash: (context) => const SplashView(),
@@ -27,5 +29,6 @@ class AppRoutes {
     novaOrdem: (context) => const NovaOrdemView(),
     detalheOrdem: (context) => const DetalheOrdemView(),
     assinatura: (context) => const AssinaturaView(),
+    assinaturas: (context) => const AssinaturasView(),
   };
 }

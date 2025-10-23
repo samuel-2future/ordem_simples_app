@@ -1,30 +1,80 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:signature/signature.dart';
 
-class AssinaturaView extends StatelessWidget {
+class AssinaturaView extends StatefulWidget {
   const AssinaturaView({super.key});
+
+  @override
+  State<AssinaturaView> createState() => _AssinaturaViewState();
+}
+
+class _AssinaturaViewState extends State<AssinaturaView> {
+  final SignatureController _controller = SignatureController(
+    penStrokeWidth: 3,
+    penColor: Colors.black,
+    exportBackgroundColor: Colors.white,
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    // Forçar orientação horizontal
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+  }
+
+  @override
+  void dispose() {
+    // Voltar para orientação normal
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _salvarAssinatura(BuildContext context) async {
+    if (_controller.isNotEmpty) {
+      final Uint8List? data = await _controller.toPngBytes();
+      if (data != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Assinatura salva com sucesso!')),
+        );
+        Navigator.pop(context);
+      }
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Assinatura vazia')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Assinatura do Cliente')),
-      body: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            height: 200,
-            margin: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Center(child: Text('Área de Assinatura')),
+      appBar: AppBar(
+        title: const Text('Fazer Assinatura'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.delete_outline),
+            tooltip: 'Limpar',
+            onPressed: () => _controller.clear(),
           ),
-          const SizedBox(height: 16),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Salvar Assinatura'),
-          )
+          IconButton(
+            icon: const Icon(Icons.save_alt),
+            tooltip: 'Salvar',
+            onPressed: () => _salvarAssinatura(context),
+          ),
         ],
+      ),
+      body: Signature(
+        controller: _controller,
+        backgroundColor: Colors.grey.shade200,
       ),
     );
   }
