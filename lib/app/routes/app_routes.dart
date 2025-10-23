@@ -1,0 +1,31 @@
+import 'package:flutter/material.dart';
+import '../../presentation/views/splash_view.dart';
+import '../../presentation/views/home_view.dart';
+import '../../presentation/views/clientes_view.dart';
+import '../../presentation/views/novo_cliente_view.dart';
+import '../../presentation/views/ordens_view.dart';
+import '../../presentation/views/nova_ordem_view.dart';
+import '../../presentation/views/detalhe_ordem_view.dart';
+import '../../presentation/views/assinatura_view.dart';
+
+class AppRoutes {
+  static const splash = '/';
+  static const home = '/home';
+  static const clientes = '/clientes';
+  static const novoCliente = '/novoCliente';
+  static const ordens = '/ordens';
+  static const novaOrdem = '/novaOrdem';
+  static const detalheOrdem = '/detalheOrdem';
+  static const assinatura = '/assinatura';
+
+  static Map<String, WidgetBuilder> routes = {
+    splash: (context) => const SplashView(),
+    home: (context) => const HomeView(),
+    clientes: (context) => const ClientesView(),
+    novoCliente: (context) => const NovoClienteView(),
+    ordens: (context) => const OrdensView(),
+    novaOrdem: (context) => const NovaOrdemView(),
+    detalheOrdem: (context) => const DetalheOrdemView(),
+    assinatura: (context) => const AssinaturaView(),
+  };
+}
