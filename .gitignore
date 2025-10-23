@@ -12,11 +12,17 @@
 .swiftpm/
 migrate_working_dir/
 
+.env/
+env/
+env
+
 # IntelliJ related
 *.iml
 *.ipr
 *.iws
 .idea/
+
+/lib/app/variaveis/globais.dart
 
 # The .vscode folder contains launch configuration and tasks you configure in
 # VS Code which you may wish to be included in version control, so this line
@@ -32,6 +38,8 @@ migrate_working_dir/
 .pub/
 /build/
 /coverage/
+
+.lib/app/variaveis/globais.dart
 
 # Symbolication related
 app.*.symbols

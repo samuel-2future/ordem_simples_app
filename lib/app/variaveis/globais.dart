@@ -1,0 +1,4 @@
+class Globais {
+  String SUPABASE_URL = "https://imjttzvjponjwiacljwt.supabase.co";
+  String SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImltanR0enZqcG9uandpYWNsand0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEyMjM4MjMsImV4cCI6MjA3Njc5OTgyM30.0InYlUDjtJJICrptg7e4UKOiFAYlSPN_zjv88tp4AF4";
+}
