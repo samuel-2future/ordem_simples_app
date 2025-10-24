@@ -14,10 +14,10 @@ class HomeView extends StatefulWidget {
 class _HomeViewState extends State<HomeView> {
   final _db = Supabase.instance.client;
 
+  bool _carregandoDashboard = true;
   int totalClientes = 0;
   int ordensAbertas = 0;
   int ordensConcluidas = 0;
-  bool carregando = true;
 
   @override
   void initState() {
@@ -27,16 +27,14 @@ class _HomeViewState extends State<HomeView> {
 
   Future<void> _carregarDashboard() async {
     if (UserSession.loginId == null) {
-      setState(() => carregando = false);
+      setState(() => _carregandoDashboard = false);
       return;
     }
 
-    setState(() => carregando = true);
-
     try {
+      setState(() => _carregandoDashboard = true);
       final loginId = UserSession.loginId!;
 
-      // Se sua versão do supabase_dart suportar, pode manter assim:
       final clientesResp = await _db
           .from('clientes')
           .count(CountOption.exact)
@@ -54,14 +52,17 @@ class _HomeViewState extends State<HomeView> {
           .eq('login_id', loginId)
           .eq('status', 'Concluída');
 
-      setState(() {
-        totalClientes = clientesResp;
-        ordensAbertas = abertasResp;
-        ordensConcluidas = concluidasResp;
-        carregando = false;
-      });
-    } catch (_) {
-      setState(() => carregando = false);
+      if (mounted) {
+        setState(() {
+          totalClientes = clientesResp;
+          ordensAbertas = abertasResp;
+          ordensConcluidas = concluidasResp;
+          _carregandoDashboard = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Erro ao carregar dashboard: $e');
+      if (mounted) setState(() => _carregandoDashboard = false);
     }
   }
 
@@ -98,190 +99,115 @@ class _HomeViewState extends State<HomeView> {
           ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: _carregarDashboard,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Saudação
-                Text(
-                  'Olá, $responsavel 👋',
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w600,
+      body: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          Text(
+            'Olá, $responsavel 👋',
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            empresa,
+            style: TextStyle(
+              color: Colors.grey.shade700,
+              fontSize: 16,
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          /// 🔁 Dashboard independente com RefreshIndicator
+          RefreshIndicator(
+            onRefresh: _carregarDashboard,
+            child: SizedBox(
+              height: 140, // garante espaço para o refresh puxando pra baixo
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: [
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 300),
+                    child: _carregandoDashboard
+                        ? Center(
+                      key: const ValueKey('loading'),
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: CircularProgressIndicator(
+                          color: Colors.blue.shade700,
+                        ),
+                      ),
+                    )
+                        : Card(
+                      key: const ValueKey('dashboard'),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      color: Colors.blue.shade50,
+                      elevation: 0,
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
+                          mainAxisAlignment:
+                          MainAxisAlignment.spaceAround,
+                          children: [
+                            _InfoChip(
+                              icon: Icons.people,
+                              label: 'Clientes',
+                              value: totalClientes.toString(),
+                              color: Colors.blue.shade700,
+                            ),
+                            _InfoChip(
+                              icon: Icons.assignment_outlined,
+                              label: 'Abertas',
+                              value: ordensAbertas.toString(),
+                              color: Colors.red.shade600,
+                            ),
+                            _InfoChip(
+                              icon: Icons.check_circle_outline,
+                              label: 'Concluídas',
+                              value: ordensConcluidas.toString(),
+                              color: Colors.green.shade600,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  empresa,
-                  style: TextStyle(
-                    color: Colors.grey.shade700,
-                    fontSize: 16,
-                  ),
-                ),
-                const SizedBox(height: 24),
-
-                // Mini Dashboard
-                _MiniDashboard(
-                  carregando: carregando,
-                  totalClientes: totalClientes,
-                  ordensAbertas: ordensAbertas,
-                  ordensConcluidas: ordensConcluidas,
-                ),
-                const SizedBox(height: 28),
-
-                // Cards principais
-                _DashboardCard(
-                  title: 'Clientes',
-                  icon: Icons.people,
-                  color: Colors.blue,
-                  description:
-                  'Gerencie seus clientes, cadastre novos e consulte informações.',
-                  onTap: () async {
-                    await Navigator.pushNamed(context, AppRoutes.clientes);
-                    if (mounted) _carregarDashboard();
-                  },
-                ),
-                const SizedBox(height: 20),
-                _DashboardCard(
-                  title: 'Ordens de Serviço',
-                  icon: Icons.assignment,
-                  color: Colors.green,
-                  description:
-                  'Crie, visualize e acompanhe as ordens de serviço cadastradas.',
-                  onTap: () async {
-                    await Navigator.pushNamed(context, AppRoutes.ordens);
-                    if (mounted) _carregarDashboard();
-                  },
-                ),
-                const SizedBox(height: 40), // margem extra no final
-              ],
+                ],
+              ),
             ),
           ),
-        ),
+
+          const SizedBox(height: 32),
+
+          // 📦 Cards principais
+          _DashboardCard(
+            title: 'Clientes',
+            icon: Icons.people,
+            color: Colors.blue,
+            description:
+            'Gerencie seus clientes, cadastre novos e consulte informações.',
+            onTap: () async {
+              await Navigator.pushNamed(context, AppRoutes.clientes);
+              if (mounted) _carregarDashboard();
+            },
+          ),
+          const SizedBox(height: 20),
+          _DashboardCard(
+            title: 'Ordens de Serviço',
+            icon: Icons.assignment,
+            color: Colors.green,
+            description:
+            'Crie, visualize e acompanhe as ordens de serviço cadastradas.',
+            onTap: () async {
+              await Navigator.pushNamed(context, AppRoutes.ordens);
+              if (mounted) _carregarDashboard();
+            },
+          ),
+        ],
       ),
-    );
-  }
-}
-
-class _MiniDashboard extends StatelessWidget {
-  final bool carregando;
-  final int totalClientes;
-  final int ordensAbertas;
-  final int ordensConcluidas;
-
-  const _MiniDashboard({
-    required this.carregando,
-    required this.totalClientes,
-    required this.ordensAbertas,
-    required this.ordensConcluidas,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    // Altura fixa para evitar “pulo” visual
-    const double fixedHeight = 92;
-
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 250),
-      child: carregando
-          ? Container(
-        key: const ValueKey('skeleton'),
-        height: fixedHeight,
-        decoration: BoxDecoration(
-          color: Colors.blue.shade50,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.blue.shade100),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: const [
-            _SkeletonBlock(),
-            _SkeletonBlock(),
-            _SkeletonBlock(),
-          ],
-        ),
-      )
-          : Container(
-        key: const ValueKey('values'),
-        height: fixedHeight,
-        decoration: BoxDecoration(
-          color: Colors.blue.shade50,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.blue.shade100),
-        ),
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _InfoChip(
-              icon: Icons.people,
-              label: 'Clientes',
-              value: totalClientes.toString(),
-              color: Colors.blue.shade700,
-            ),
-            _InfoChip(
-              icon: Icons.assignment_outlined,
-              label: 'Abertas',
-              value: ordensAbertas.toString(),
-              color: Colors.red.shade600,
-            ),
-            _InfoChip(
-              icon: Icons.check_circle_outline,
-              label: 'Concluídas',
-              value: ordensConcluidas.toString(),
-              color: Colors.green.shade600,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SkeletonBlock extends StatelessWidget {
-  const _SkeletonBlock();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        // círculo (ícone)
-        Container(
-          width: 26,
-          height: 26,
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.6),
-            shape: BoxShape.circle,
-          ),
-        ),
-        const SizedBox(height: 8),
-        // número
-        Container(
-          width: 36,
-          height: 16,
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.6),
-            borderRadius: BorderRadius.circular(6),
-          ),
-        ),
-        const SizedBox(height: 6),
-        // label
-        Container(
-          width: 56,
-          height: 12,
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.6),
-            borderRadius: BorderRadius.circular(6),
-          ),
-        ),
-      ],
     );
   }
 }
@@ -302,6 +228,7 @@ class _InfoChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Icon(icon, color: color, size: 26),
         const SizedBox(height: 6),
@@ -353,7 +280,6 @@ class _DashboardCard extends StatelessWidget {
           boxShadow: [
             BoxShadow(
               color: Colors.grey.withOpacity(0.15),
-              spreadRadius: 2,
               blurRadius: 6,
               offset: const Offset(0, 3),
             ),
@@ -363,7 +289,6 @@ class _DashboardCard extends StatelessWidget {
           padding: const EdgeInsets.all(18),
           child: Row(
             children: [
-              // Ícone colorido
               Container(
                 decoration: BoxDecoration(
                   color: color.withOpacity(0.1),
@@ -373,8 +298,6 @@ class _DashboardCard extends StatelessWidget {
                 child: Icon(icon, color: color, size: 32),
               ),
               const SizedBox(width: 20),
-
-              // Texto
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -399,8 +322,6 @@ class _DashboardCard extends StatelessWidget {
                   ],
                 ),
               ),
-
-              // Setinha
               const Icon(Icons.arrow_forward_ios, color: Colors.grey, size: 18),
             ],
           ),
