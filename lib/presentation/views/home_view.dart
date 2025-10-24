@@ -26,11 +26,17 @@ class _HomeViewState extends State<HomeView> {
   }
 
   Future<void> _carregarDashboard() async {
-    if (UserSession.loginId == null) return;
+    if (UserSession.loginId == null) {
+      setState(() => carregando = false);
+      return;
+    }
+
+    setState(() => carregando = true);
 
     try {
       final loginId = UserSession.loginId!;
 
+      // Se sua versão do supabase_dart suportar, pode manter assim:
       final clientesResp = await _db
           .from('clientes')
           .count(CountOption.exact)
@@ -54,7 +60,7 @@ class _HomeViewState extends State<HomeView> {
         ordensConcluidas = concluidasResp;
         carregando = false;
       });
-    } catch (e) {
+    } catch (_) {
       setState(() => carregando = false);
     }
   }
@@ -94,85 +100,188 @@ class _HomeViewState extends State<HomeView> {
       ),
       body: RefreshIndicator(
         onRefresh: _carregarDashboard,
-        child: ListView(
-          padding: const EdgeInsets.all(20),
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Saudação
+                Text(
+                  'Olá, $responsavel 👋',
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  empresa,
+                  style: TextStyle(
+                    color: Colors.grey.shade700,
+                    fontSize: 16,
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // Mini Dashboard
+                _MiniDashboard(
+                  carregando: carregando,
+                  totalClientes: totalClientes,
+                  ordensAbertas: ordensAbertas,
+                  ordensConcluidas: ordensConcluidas,
+                ),
+                const SizedBox(height: 28),
+
+                // Cards principais
+                _DashboardCard(
+                  title: 'Clientes',
+                  icon: Icons.people,
+                  color: Colors.blue,
+                  description:
+                  'Gerencie seus clientes, cadastre novos e consulte informações.',
+                  onTap: () async {
+                    await Navigator.pushNamed(context, AppRoutes.clientes);
+                    if (mounted) _carregarDashboard();
+                  },
+                ),
+                const SizedBox(height: 20),
+                _DashboardCard(
+                  title: 'Ordens de Serviço',
+                  icon: Icons.assignment,
+                  color: Colors.green,
+                  description:
+                  'Crie, visualize e acompanhe as ordens de serviço cadastradas.',
+                  onTap: () async {
+                    await Navigator.pushNamed(context, AppRoutes.ordens);
+                    if (mounted) _carregarDashboard();
+                  },
+                ),
+                const SizedBox(height: 40), // margem extra no final
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MiniDashboard extends StatelessWidget {
+  final bool carregando;
+  final int totalClientes;
+  final int ordensAbertas;
+  final int ordensConcluidas;
+
+  const _MiniDashboard({
+    required this.carregando,
+    required this.totalClientes,
+    required this.ordensAbertas,
+    required this.ordensConcluidas,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Altura fixa para evitar “pulo” visual
+    const double fixedHeight = 92;
+
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 250),
+      child: carregando
+          ? Container(
+        key: const ValueKey('skeleton'),
+        height: fixedHeight,
+        decoration: BoxDecoration(
+          color: Colors.blue.shade50,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.blue.shade100),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: const [
+            _SkeletonBlock(),
+            _SkeletonBlock(),
+            _SkeletonBlock(),
+          ],
+        ),
+      )
+          : Container(
+        key: const ValueKey('values'),
+        height: fixedHeight,
+        decoration: BoxDecoration(
+          color: Colors.blue.shade50,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.blue.shade100),
+        ),
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            // Saudação
-            Text(
-              'Olá, $responsavel 👋',
-              style: const TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              empresa,
-              style: TextStyle(
-                color: Colors.grey.shade700,
-                fontSize: 16,
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Mini Dashboard
-            carregando
-                ? const Center(child: CircularProgressIndicator())
-                : Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.blue.shade100),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _InfoChip(
-                    icon: Icons.people,
-                    label: 'Clientes',
-                    value: totalClientes.toString(),
-                    color: Colors.blue.shade700,
-                  ),
-                  _InfoChip(
-                    icon: Icons.assignment_outlined,
-                    label: 'Abertas',
-                    value: ordensAbertas.toString(),
-                    color: Colors.red.shade600,
-                  ),
-                  _InfoChip(
-                    icon: Icons.check_circle_outline,
-                    label: 'Concluídas',
-                    value: ordensConcluidas.toString(),
-                    color: Colors.green.shade600,
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 28),
-
-            // Cards principais
-            _DashboardCard(
-              title: 'Clientes',
+            _InfoChip(
               icon: Icons.people,
-              color: Colors.blue,
-              description:
-              'Gerencie seus clientes, cadastre novos e consulte informações.',
-              onTap: () => Navigator.pushNamed(context, AppRoutes.clientes),
+              label: 'Clientes',
+              value: totalClientes.toString(),
+              color: Colors.blue.shade700,
             ),
-            const SizedBox(height: 20),
-            _DashboardCard(
-              title: 'Ordens de Serviço',
-              icon: Icons.assignment,
-              color: Colors.green,
-              description:
-              'Crie, visualize e acompanhe as ordens de serviço cadastradas.',
-              onTap: () => Navigator.pushNamed(context, AppRoutes.ordens),
+            _InfoChip(
+              icon: Icons.assignment_outlined,
+              label: 'Abertas',
+              value: ordensAbertas.toString(),
+              color: Colors.red.shade600,
+            ),
+            _InfoChip(
+              icon: Icons.check_circle_outline,
+              label: 'Concluídas',
+              value: ordensConcluidas.toString(),
+              color: Colors.green.shade600,
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _SkeletonBlock extends StatelessWidget {
+  const _SkeletonBlock();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        // círculo (ícone)
+        Container(
+          width: 26,
+          height: 26,
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.6),
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(height: 8),
+        // número
+        Container(
+          width: 36,
+          height: 16,
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.6),
+            borderRadius: BorderRadius.circular(6),
+          ),
+        ),
+        const SizedBox(height: 6),
+        // label
+        Container(
+          width: 56,
+          height: 12,
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.6),
+            borderRadius: BorderRadius.circular(6),
+          ),
+        ),
+      ],
     );
   }
 }

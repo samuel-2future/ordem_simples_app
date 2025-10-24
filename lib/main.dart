@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:intl/intl.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:ordem_simples_app/presentation/views/login_view.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app/routes/app_routes.dart';
@@ -8,7 +9,11 @@ import 'app/variaveis/globais.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  var variaveis = new Globais();
+
+  await initializeDateFormatting('pt_BR');
+  Intl.defaultLocale = 'pt_BR';
+
+  final variaveis = Globais();
 
   await Supabase.initialize(
     url: variaveis.SUPABASE_URL,
@@ -20,6 +25,7 @@ Future<void> main() async {
 
 class OrdemSimplesApp extends StatelessWidget {
   const OrdemSimplesApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -27,7 +33,7 @@ class OrdemSimplesApp extends StatelessWidget {
       theme: AppTheme.lightTheme,
       routes: AppRoutes.routes,
       debugShowCheckedModeBanner: false,
-      home: LoginView(),
+      home: const LoginView(), // 👍 pode ser const
     );
   }
 }

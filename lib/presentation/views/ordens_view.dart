@@ -14,7 +14,8 @@ class OrdensView extends StatefulWidget {
 
 class _OrdensViewState extends State<OrdensView> {
   final _svc = OrdemService();
-  final _dateFormat = DateFormat('dd/MM/yyyy HH:mm');
+  final _dateFormat = DateFormat('dd/MM/yyyy HH:mm', 'pt_BR');
+  final _currency = NumberFormat.simpleCurrency(locale: 'pt_BR');
 
   bool _loading = true;
   String? _error;
@@ -37,7 +38,6 @@ class _OrdensViewState extends State<OrdensView> {
         throw Exception('Sessão inválida. Faça login novamente.');
       }
 
-      debugPrint('🔹 Carregando ordens do login_id: ${UserSession.loginId}');
       final data = await _svc.listarOrdensDoLogin(UserSession.loginId!);
 
       setState(() {
@@ -55,12 +55,21 @@ class _OrdensViewState extends State<OrdensView> {
 
   Future<void> _goToNovaOrdem() async {
     final result = await Navigator.pushNamed(context, AppRoutes.novaOrdem);
-    if (result == true && mounted) {
-      await _loadOrdens();
+    if (!mounted) return;
+    if (result == true) {
+      await _loadOrdens(); // ✅ recarrega ao voltar
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Ordem criada com sucesso.')),
       );
     }
+  }
+
+  Future<void> _irParaDetalhe(String id) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => DetalheOrdemView(ordemId: id)),
+    );
+    if (!mounted) return;
+    await _loadOrdens(); // ✅ recarrega sempre que voltar do detalhe
   }
 
   Future<void> _excluirOrdem(String id, String tituloSnack) async {
@@ -114,27 +123,46 @@ class _OrdensViewState extends State<OrdensView> {
 
   Color _statusColor(String status) {
     switch (status.toLowerCase()) {
-      case 'assinado':
+      case 'assinada':
         return Colors.blue;
-      case 'concluído':
-      case 'concluida':
       case 'concluída':
+      case 'concluido':
+      case 'concluida':
         return Colors.green;
-      default:
+      default: // Aberta ou outros
         return Colors.red;
     }
   }
 
   IconData _statusIcon(String status) {
     switch (status.toLowerCase()) {
-      case 'assinado':
+      case 'assinada':
         return Icons.edit_document;
-      case 'concluído':
-      case 'concluida':
       case 'concluída':
+      case 'concluido':
+      case 'concluida':
         return Icons.check_circle_outline;
-      default:
+      default: // Aberta
         return Icons.warning_amber_rounded;
+    }
+  }
+
+  String _fmtData(dynamic iso) {
+    if (iso == null) return 'Sem data';
+    try {
+      return _dateFormat.format(DateTime.parse(iso.toString()).toLocal());
+    } catch (_) {
+      return 'Sem data';
+    }
+  }
+
+  String _fmtValor(dynamic v) {
+    if (v == null) return _currency.format(0);
+    try {
+      final num n = (v is num) ? v : num.parse(v.toString());
+      return _currency.format(n);
+    } catch (_) {
+      return v.toString();
     }
   }
 
@@ -170,26 +198,21 @@ class _OrdensViewState extends State<OrdensView> {
             final clienteNome = (o['clientes']?['nome'] ?? 'Cliente não informado').toString();
             final tipo = (o['tipo_servico'] ?? '—').toString();
             final status = (o['status'] ?? 'Aberta').toString();
-            final valor = (o['valor'] ?? 0).toString();
-            final data = o['created_at'] != null
-                ? _dateFormat.format(DateTime.parse(o['created_at']))
-                : 'Sem data';
+            final valorFmt = _fmtValor(o['valor']);
+            final data = _fmtData(o['created_at']);
+
+            final cor = _statusColor(status);
+            final icone = _statusIcon(status);
 
             return Card(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
-                side: BorderSide(color: _statusColor(status).withOpacity(0.4)),
+                side: BorderSide(color: cor.withOpacity(0.4)),
               ),
               elevation: 2,
               child: InkWell(
                 borderRadius: BorderRadius.circular(12),
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => DetalheOrdemView(ordemId: id),
-                    ),
-                  );
-                },
+                onTap: () => _irParaDetalhe(id), // ✅ aguarda e recarrega ao voltar
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Row(
@@ -198,14 +221,10 @@ class _OrdensViewState extends State<OrdensView> {
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: _statusColor(status).withOpacity(0.1),
+                          color: cor.withOpacity(0.1),
                           shape: BoxShape.circle,
                         ),
-                        child: Icon(
-                          _statusIcon(status),
-                          color: _statusColor(status),
-                          size: 28,
-                        ),
+                        child: Icon(icone, color: cor, size: 28),
                       ),
                       const SizedBox(width: 16),
 
@@ -224,9 +243,7 @@ class _OrdensViewState extends State<OrdensView> {
                             const SizedBox(height: 4),
                             Text(
                               clienteNome,
-                              style: TextStyle(
-                                color: Colors.grey.shade800,
-                              ),
+                              style: TextStyle(color: Colors.grey.shade800),
                             ),
                             const SizedBox(height: 4),
                             Row(
@@ -243,23 +260,34 @@ class _OrdensViewState extends State<OrdensView> {
                         ),
                       ),
 
-                      // status
+                      // status + valor
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Text(
                             status,
                             style: TextStyle(
-                              color: _statusColor(status),
+                              color: cor,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
                           const SizedBox(height: 6),
                           Text(
-                            'R\$ ${valor.toString()}',
+                            valorFmt,
                             style: const TextStyle(
                               fontWeight: FontWeight.w600,
                               fontSize: 15,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          IconButton(
+                            tooltip: 'Excluir',
+                            icon: const Icon(Icons.delete_outline),
+                            color: Colors.red.shade400,
+                            onPressed: () => _confirmExcluir(
+                              context,
+                              id: id,
+                              tituloSnack: tipo.isEmpty ? 'Ordem $id' : tipo,
                             ),
                           ),
                         ],
@@ -280,7 +308,10 @@ class _OrdensViewState extends State<OrdensView> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _goToNovaOrdem,
         icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text('Nova Ordem', style: TextStyle(color: Colors.white),),
+        label: const Text(
+          'Nova Ordem',
+          style: TextStyle(color: Colors.white),
+        ),
       ),
     );
   }
