@@ -83,8 +83,10 @@ class _DetalheOrdemViewState extends State<DetalheOrdemView> {
   }
 
   Future<void> _concluirOrdem() async {
-    final status = (_ordem?['status'] ?? '').toString();
-    if (status.toLowerCase() != 'assinada') {
+    final status = (_ordem?['status'] ?? '').toString().toLowerCase();
+    final assinaturaBase64 = (_ordem?['assinatura_base64'] ?? '').toString();
+
+    if (assinaturaBase64.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Assine a ordem antes de concluir.')),
       );
