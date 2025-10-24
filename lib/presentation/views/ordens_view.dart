@@ -271,11 +271,14 @@ class _OrdensViewState extends State<OrdensView> {
                                 Icon(Icons.calendar_month,
                                     size: 16, color: Colors.grey.shade600),
                                 const SizedBox(width: 4),
-                                Text(
-                                  data,
-                                  style: TextStyle(
-                                    color: Colors.grey.shade700,
-                                    fontSize: 13,
+                                Expanded(
+                                  child: Text(
+                                    data,
+                                    style: TextStyle(
+                                      color: Colors.grey.shade700,
+                                      fontSize: 13,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
                               ],
