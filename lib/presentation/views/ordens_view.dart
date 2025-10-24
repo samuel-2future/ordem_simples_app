@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../../app/routes/app_routes.dart';
 import '../../core/user_session.dart';
 import '../../services/ordem_service.dart';
@@ -13,6 +14,7 @@ class OrdensView extends StatefulWidget {
 
 class _OrdensViewState extends State<OrdensView> {
   final _svc = OrdemService();
+  final _dateFormat = DateFormat('dd/MM/yyyy HH:mm');
 
   bool _loading = true;
   String? _error;
@@ -51,7 +53,6 @@ class _OrdensViewState extends State<OrdensView> {
     }
   }
 
-
   Future<void> _goToNovaOrdem() async {
     final result = await Navigator.pushNamed(context, AppRoutes.novaOrdem);
     if (result == true && mounted) {
@@ -62,17 +63,16 @@ class _OrdensViewState extends State<OrdensView> {
     }
   }
 
-
   Future<void> _excluirOrdem(String id, String tituloSnack) async {
     try {
       await _svc.excluirOrdem(
-        loginId: UserSession.loginId!, // dono
-        ordemId: id,                   // item único
+        loginId: UserSession.loginId!,
+        ordemId: id,
       );
 
       if (!mounted) return;
       setState(() {
-        _ordens.removeWhere((o) => o['id'].toString() == id); // remove só esse
+        _ordens.removeWhere((o) => o['id'].toString() == id);
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Ordem "$tituloSnack" excluída.')),
@@ -112,33 +112,30 @@ class _OrdensViewState extends State<OrdensView> {
     );
   }
 
-  Widget _statusChip(BuildContext context, String status) {
-    final theme = Theme.of(context).colorScheme;
-    Color bg;
-    Color fg;
+  Color _statusColor(String status) {
     switch (status.toLowerCase()) {
-      case 'concluída':
+      case 'assinado':
+        return Colors.blue;
+      case 'concluído':
       case 'concluida':
-        bg = Colors.green.withOpacity(0.12);
-        fg = Colors.green.shade800;
-        break;
-      case 'em andamento':
-        bg = Colors.orange.withOpacity(0.12);
-        fg = Colors.orange.shade800;
-        break;
-      case 'cancelada':
-        bg = Colors.red.withOpacity(0.12);
-        fg = Colors.red.shade800;
-        break;
-      default: // Aberta
-        bg = theme.primary.withOpacity(0.12);
-        fg = theme.primary;
+      case 'concluída':
+        return Colors.green;
+      default:
+        return Colors.red;
     }
-    return Container(
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(16)),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      child: Text(status, style: TextStyle(color: fg, fontWeight: FontWeight.w600)),
-    );
+  }
+
+  IconData _statusIcon(String status) {
+    switch (status.toLowerCase()) {
+      case 'assinado':
+        return Icons.edit_document;
+      case 'concluído':
+      case 'concluida':
+      case 'concluída':
+        return Icons.check_circle_outline;
+      default:
+        return Icons.warning_amber_rounded;
+    }
   }
 
   @override
@@ -147,23 +144,13 @@ class _OrdensViewState extends State<OrdensView> {
     if (_loading) {
       body = const Center(child: CircularProgressIndicator());
     } else if (_error != null) {
-      body = ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          const SizedBox(height: 120),
-          Center(child: Text(_error!, textAlign: TextAlign.center)),
-          const SizedBox(height: 12),
-          Center(
-            child: OutlinedButton.icon(
-              onPressed: _loadOrdens,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Tentar novamente'),
-            ),
-          ),
-        ],
+      body = Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Text(_error!, textAlign: TextAlign.center),
+        ),
       );
     } else if (_ordens.isEmpty) {
-      // Para o RefreshIndicator funcionar no estado vazio
       body = ListView(
         padding: const EdgeInsets.all(16),
         children: const [
@@ -172,55 +159,128 @@ class _OrdensViewState extends State<OrdensView> {
         ],
       );
     } else {
-      body = ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: _ordens.length,
-        itemBuilder: (context, index) {
-          final o = _ordens[index];
-          final id = o['id'].toString(); // pode ser int (bigserial) ou uuid -> toString()
-          final clienteNome = (o['clientes']?['nome'] ?? 'Cliente').toString();
-          final status = (o['status'] ?? 'Aberta').toString();
-          final tipo = (o['tipo_servico'] ?? '').toString();
+      body = RefreshIndicator(
+        onRefresh: _loadOrdens,
+        child: ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: _ordens.length,
+          itemBuilder: (context, index) {
+            final o = _ordens[index];
+            final id = o['id'].toString();
+            final clienteNome = (o['clientes']?['nome'] ?? 'Cliente não informado').toString();
+            final tipo = (o['tipo_servico'] ?? '—').toString();
+            final status = (o['status'] ?? 'Aberta').toString();
+            final valor = (o['valor'] ?? 0).toString();
+            final data = o['created_at'] != null
+                ? _dateFormat.format(DateTime.parse(o['created_at']))
+                : 'Sem data';
 
-          return Card(
-            child: ListTile(
-              title: Text(tipo.isEmpty ? 'Ordem $id' : tipo),
-              subtitle: Text(clienteNome),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _statusChip(context, status),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    tooltip: 'Excluir',
-                    icon: const Icon(Icons.delete_outline),
-                    color: Colors.red.shade400,
-                    onPressed: () => _confirmExcluir(context, id: id, tituloSnack: tipo.isEmpty ? 'Ordem $id' : tipo),
-                  ),
-                ],
+            return Card(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(color: _statusColor(status).withOpacity(0.4)),
               ),
+              elevation: 2,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
                 onTap: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (_) => DetalheOrdemView(ordemId: id), // sem const
+                      builder: (_) => DetalheOrdemView(ordemId: id),
                     ),
                   );
-                }
-            ),
-          );
-        },
+                },
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      // ícone do status
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: _statusColor(status).withOpacity(0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          _statusIcon(status),
+                          color: _statusColor(status),
+                          size: 28,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+
+                      // conteúdo do card
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              tipo,
+                              style: const TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              clienteNome,
+                              style: TextStyle(
+                                color: Colors.grey.shade800,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Icon(Icons.calendar_month, size: 16, color: Colors.grey.shade600),
+                                const SizedBox(width: 4),
+                                Text(
+                                  data,
+                                  style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // status
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            status,
+                            style: TextStyle(
+                              color: _statusColor(status),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'R\$ ${valor.toString()}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
       );
     }
 
     return Scaffold(
       appBar: AppBar(title: const Text('Ordens de Serviço')),
-      body: RefreshIndicator(
-        onRefresh: _loadOrdens,
-        child: body,
-      ),
-      floatingActionButton: FloatingActionButton(
+      body: body,
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: _goToNovaOrdem,
-        child: const Icon(Icons.add, color: Colors.white),
+        icon: const Icon(Icons.add, color: Colors.white),
+        label: const Text('Nova Ordem', style: TextStyle(color: Colors.white),),
       ),
     );
   }
