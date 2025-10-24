@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:ordem_simples_app/presentation/views/login_view.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app/routes/app_routes.dart';
 import 'app/theme/app_theme.dart';
@@ -24,9 +25,9 @@ class OrdemSimplesApp extends StatelessWidget {
     return MaterialApp(
       title: 'Ordem Simples',
       theme: AppTheme.lightTheme,
-      initialRoute: AppRoutes.splash,
       routes: AppRoutes.routes,
       debugShowCheckedModeBanner: false,
+      home: LoginView(),
     );
   }
 }

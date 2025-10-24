@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_multi_formatter/flutter_multi_formatter.dart';
+import '../../core/user_session.dart';
 import '../../services/ordem_service.dart';
 import '../../services/cliente_service.dart';
 
@@ -44,8 +45,8 @@ class _NovaOrdemViewState extends State<NovaOrdemView> {
 
   Future<void> _carregarClientes() async {
     try {
-      final data = await _clienteSvc.listarClientes();
-      setState(() => _clientes = data);
+      final clientes = await ClienteService().listarClientesDoLogin(UserSession.loginId!);
+      setState(() => _clientes = clientes);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erro ao carregar clientes: $e')),
@@ -70,7 +71,15 @@ class _NovaOrdemViewState extends State<NovaOrdemView> {
         valorCtrl.text.replaceAll(RegExp(r'[^0-9,]'), '').replaceAll(',', '.'),
       );
 
+      if (UserSession.loginId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sessão expirada. Faça login novamente.')),
+        );
+        return;
+      }
+
       await _ordemSvc.criarOrdem(
+        loginId: UserSession.loginId!,
         clienteId: _clienteSelecionadoId!,
         tipoServico: isOutros ? tipoCustomCtrl.text.trim() : tipoSelecionado!,
         descricao: descricaoCtrl.text.trim(),

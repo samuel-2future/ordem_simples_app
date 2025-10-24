@@ -3,39 +3,53 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class ClienteService {
   final _db = Supabase.instance.client;
 
-  // 🔹 Criar cliente
   Future<Map<String, dynamic>> criarCliente({
+    required int loginId,
     required String nome,
     String? telefone,
     String? email,
-    String? endereco,
     String? cep,
+    String? rua,
     String? numero,
+    String? tipoResidencia,
     String? complemento,
   }) async {
-    final rows = await _db
-        .from('clientes')
-        .insert({
+    final payload = {
+      'login_id': loginId,
       'nome': nome,
-      'telefone': telefone,
-      'email': email,
-      'endereco': endereco,
-      'cep': cep,
-      'numero': numero,
-      'complemento': complemento,
-    })
-        .select()
-        .limit(1);
+      if (telefone != null && telefone.isNotEmpty) 'telefone': telefone,
+      if (email != null && email.isNotEmpty) 'email': email,
+      if (cep != null && cep.isNotEmpty) 'cep': cep,
+      if (rua != null && rua.isNotEmpty) 'rua': rua,
+      if (numero != null && numero.isNotEmpty) 'numero': numero,
+      if (tipoResidencia != null && tipoResidencia.isNotEmpty) 'tipo_residencia': tipoResidencia,
+      if (complemento != null && complemento.isNotEmpty) 'complemento': complemento,
+    };
 
-    return rows.first as Map<String, dynamic>;
+    final data = await _db.from('clientes').insert(payload).select().single();
+    return Map<String, dynamic>.from(data);
   }
 
-  // 🔹 Listar todos os clientes
-  Future<List<Map<String, dynamic>>> listarClientes() async {
+  Future<List<Map<String, dynamic>>> listarClientesDoLogin(int loginId) async {
     final data = await _db
         .from('clientes')
-        .select('id, nome, telefone, email, endereco, cep, numero, complemento')
-        .order('nome', ascending: true);
+        .select('id, nome, telefone, email, endereco, created_at')
+        .eq('login_id', loginId)
+        .order('created_at', ascending: false);
+
+    return List<Map<String, dynamic>>.from(data);
+  }
+
+  Future<List<Map<String, dynamic>>> buscarPorNome({
+    required int loginId,
+    required String termo,
+  }) async {
+    final data = await _db
+        .from('clientes')
+        .select('id, nome, telefone, email, endereco, created_at')
+        .eq('login_id', loginId)
+        .ilike('nome', '%$termo%')
+        .order('created_at', ascending: false);
 
     return List<Map<String, dynamic>>.from(data);
   }

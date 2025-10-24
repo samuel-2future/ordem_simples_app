@@ -1,13 +1,34 @@
 import 'package:flutter/material.dart';
 import '../../app/routes/app_routes.dart';
+import '../../core/user_session.dart';
+import '../views/login_view.dart';
 
 class HomeView extends StatelessWidget {
   const HomeView({super.key});
 
+  void _sair(BuildContext context) {
+    UserSession.clear();
+
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const LoginView()),
+          (route) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Ordem Simples')),
+      appBar: AppBar(
+        title: const Text('Ordem Simples'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: 'Sair',
+            onPressed: () => _sair(context),
+          ),
+        ],
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -23,12 +44,6 @@ class HomeView extends StatelessWidget {
               label: 'Ordens de Serviço',
               icon: Icons.assignment,
               onTap: () => Navigator.pushNamed(context, AppRoutes.ordens),
-            ),
-            const SizedBox(height: 16),
-            _HomeButton(
-              label: 'Nova Ordem',
-              icon: Icons.add_circle,
-              onTap: () => Navigator.pushNamed(context, AppRoutes.novaOrdem),
             ),
           ],
         ),

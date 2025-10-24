@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../app/routes/app_routes.dart';
+import '../../core/user_session.dart';
+import '../../services/cliente_service.dart';
 
 class ClientesView extends StatefulWidget {
   const ClientesView({super.key});
@@ -11,6 +13,8 @@ class ClientesView extends StatefulWidget {
 
 class _ClientesViewState extends State<ClientesView> {
   final _db = Supabase.instance.client;
+  final _svc = ClienteService();
+
   bool _loading = true;
   String? _error;
   List<Map<String, dynamic>> _clientes = [];
@@ -18,31 +22,40 @@ class _ClientesViewState extends State<ClientesView> {
   @override
   void initState() {
     super.initState();
-    _loadClientes();
+    _carregarClientes();
   }
 
-  Future<void> _loadClientes() async {
+  Future<void> _carregarClientes() async {
     setState(() {
       _loading = true;
       _error = null;
     });
+
     try {
-      final data = await _db
-          .from('clientes')
-          .select('id, nome, telefone, email, endereco, created_at')
-          .order('created_at', ascending: false);
-      _clientes = List<Map<String, dynamic>>.from(data);
-    } catch (e) {
-      _error = 'Falha ao carregar clientes: $e';
-    } finally {
-      if (mounted) setState(() => _loading = false);
+      if (UserSession.loginId == null) {
+        throw Exception('Sessão inválida. Faça login novamente.');
+      }
+
+      debugPrint('🔹 Carregando clientes do login_id: ${UserSession.loginId}');
+      final clientes = await _svc.listarClientesDoLogin(UserSession.loginId!);
+
+      setState(() {
+        _clientes = clientes;
+        _loading = false;
+      });
+    } catch (e, s) {
+      debugPrint('❌ Erro ao carregar clientes: $e\n$s');
+      setState(() {
+        _error = 'Erro ao carregar clientes: $e';
+        _loading = false;
+      });
     }
   }
 
   Future<void> _goToNovoCliente() async {
     final result = await Navigator.pushNamed(context, AppRoutes.novoCliente);
     if (result == true && mounted) {
-      await _loadClientes();
+      await _carregarClientes();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Cliente cadastrado com sucesso.')),
       );
@@ -55,6 +68,7 @@ class _ClientesViewState extends State<ClientesView> {
           .from('clientes')
           .delete()
           .eq('id', id)
+          .eq('login_id', UserSession.loginId!) // 🔒 exclui só se for meu
           .select('id')
           .maybeSingle();
 
@@ -62,16 +76,14 @@ class _ClientesViewState extends State<ClientesView> {
 
       if (deleted == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Não foi possível excluir "$nome". Verifique as policies de RLS.')),
+          SnackBar(content: Text('Não foi possível excluir "$nome".')),
         );
         return;
       }
 
       setState(() {
-        _clientes.removeWhere((c) => c['id'] == id);
+        _clientes.removeWhere((c) => c['id'].toString() == id);
       });
-
-      await _loadClientes();
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Cliente "$nome" excluído.')),
@@ -79,7 +91,7 @@ class _ClientesViewState extends State<ClientesView> {
     } on PostgrestException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro de RLS/DB ao excluir "$nome": ${e.message}')),
+        SnackBar(content: Text('Erro no banco: ${e.message}')),
       );
     } catch (e) {
       if (!mounted) return;
@@ -88,7 +100,6 @@ class _ClientesViewState extends State<ClientesView> {
       );
     }
   }
-
 
   void _confirmExcluir(BuildContext context, {required String id, required String nome}) {
     showDialog(
@@ -130,10 +141,12 @@ class _ClientesViewState extends State<ClientesView> {
         ),
       );
     } else if (_clientes.isEmpty) {
-      // Para o RefreshIndicator funcionar também no estado vazio:
       body = ListView(
         padding: const EdgeInsets.all(16),
-        children: const [SizedBox(height: 200), Center(child: Text('Nenhum cliente cadastrado ainda.'))],
+        children: const [
+          SizedBox(height: 200),
+          Center(child: Text('Nenhum cliente cadastrado ainda.')),
+        ],
       );
     } else {
       body = ListView.builder(
@@ -144,6 +157,7 @@ class _ClientesViewState extends State<ClientesView> {
           final id = (c['id'] ?? '').toString();
           final nome = (c['nome'] ?? '').toString();
           final tel = (c['telefone'] ?? '').toString();
+
           return Card(
             child: ListTile(
               title: Text(nome.isEmpty ? 'Sem nome' : nome),
@@ -152,9 +166,12 @@ class _ClientesViewState extends State<ClientesView> {
                 tooltip: 'Excluir',
                 icon: const Icon(Icons.delete_outline),
                 color: Colors.red.shade400,
-                onPressed: () => _confirmExcluir(context, id: id, nome: nome.isEmpty ? 'Sem nome' : nome),
+                onPressed: () => _confirmExcluir(
+                  context,
+                  id: id,
+                  nome: nome.isEmpty ? 'Sem nome' : nome,
+                ),
               ),
-              onTap: () {}, // detalhamento futuro
             ),
           );
         },
@@ -163,10 +180,7 @@ class _ClientesViewState extends State<ClientesView> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Clientes')),
-      body: RefreshIndicator(
-        onRefresh: _loadClientes,
-        child: body,
-      ),
+      body: RefreshIndicator(onRefresh: _carregarClientes, child: body),
       floatingActionButton: FloatingActionButton(
         onPressed: _goToNovoCliente,
         child: const Icon(Icons.add, color: Colors.white),

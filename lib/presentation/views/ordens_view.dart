@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../app/routes/app_routes.dart';
+import '../../core/user_session.dart';
 import '../../services/ordem_service.dart';
+import 'detalhe_ordem_view.dart';
 
 class OrdensView extends StatefulWidget {
   const OrdensView({super.key});
@@ -27,15 +29,28 @@ class _OrdensViewState extends State<OrdensView> {
       _loading = true;
       _error = null;
     });
+
     try {
-      final data = await _svc.listarOrdens();
-      setState(() => _ordens = data);
-    } catch (e) {
-      setState(() => _error = 'Falha ao carregar ordens: $e');
-    } finally {
-      if (mounted) setState(() => _loading = false);
+      if (UserSession.loginId == null) {
+        throw Exception('Sessão inválida. Faça login novamente.');
+      }
+
+      debugPrint('🔹 Carregando ordens do login_id: ${UserSession.loginId}');
+      final data = await _svc.listarOrdensDoLogin(UserSession.loginId!);
+
+      setState(() {
+        _ordens = data;
+        _loading = false;
+      });
+    } catch (e, s) {
+      debugPrint('❌ Erro ao carregar ordens: $e\n$s');
+      setState(() {
+        _error = 'Erro ao carregar ordens: $e';
+        _loading = false;
+      });
     }
   }
+
 
   Future<void> _goToNovaOrdem() async {
     final result = await Navigator.pushNamed(context, AppRoutes.novaOrdem);
@@ -47,11 +62,18 @@ class _OrdensViewState extends State<OrdensView> {
     }
   }
 
+
   Future<void> _excluirOrdem(String id, String tituloSnack) async {
     try {
-      await _svc.excluirOrdem(id);
+      await _svc.excluirOrdem(
+        loginId: UserSession.loginId!, // dono
+        ordemId: id,                   // item único
+      );
+
       if (!mounted) return;
-      setState(() => _ordens.removeWhere((o) => o['id'].toString() == id));
+      setState(() {
+        _ordens.removeWhere((o) => o['id'].toString() == id); // remove só esse
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Ordem "$tituloSnack" excluída.')),
       );
@@ -177,7 +199,13 @@ class _OrdensViewState extends State<OrdensView> {
                   ),
                 ],
               ),
-              onTap: () => Navigator.pushNamed(context, AppRoutes.detalheOrdem, arguments: id),
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => DetalheOrdemView(ordemId: id), // sem const
+                    ),
+                  );
+                }
             ),
           );
         },

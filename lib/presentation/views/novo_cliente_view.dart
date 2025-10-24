@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_multi_formatter/flutter_multi_formatter.dart';
 import 'package:http/http.dart' as http;
+import '../../core/user_session.dart';
 import '../../services/cliente_service.dart';
 
 class NovoClienteView extends StatefulWidget {
@@ -42,51 +43,20 @@ class _NovoClienteViewState extends State<NovoClienteView> {
     if (cep.length != 8) return;
 
     setState(() => _buscandoEndereco = true);
-
     try {
       final response = await http.get(Uri.parse('https://viacep.com.br/ws/$cep/json/'));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data['erro'] == true) throw Exception('CEP não encontrado');
-        _ruaCtrl.text = data['logradouro'] ?? '';
+        _ruaCtrl.text = (data['logradouro'] ?? '').toString();
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erro ao buscar CEP: $e')),
       );
     } finally {
-      setState(() => _buscandoEndereco = false);
-    }
-  }
-
-  Future<void> _salvar() async {
-    final ok = _formKey.currentState?.validate() ?? false;
-    if (!ok) return;
-
-    setState(() => _loading = true);
-    try {
-      await _svc.criarCliente(
-        nome: _nomeCtrl.text.trim(),
-        telefone: _telCtrl.text.trim().isEmpty ? null : _telCtrl.text.trim(),
-        email: _emailCtrl.text.trim().isEmpty ? null : _emailCtrl.text.trim(),
-        endereco: _ruaCtrl.text.trim(),
-        numero: _numeroCtrl.text.trim(),
-        complemento: _tipoResidencia == 'Apartamento'
-            ? _compCtrl.text.trim()
-            : null,
-        cep: _cepCtrl.text.trim(),
-      );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Cliente cadastrado com sucesso!')),
-      );
-      Navigator.pop(context, true);
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao salvar: $e')),
-      );
-    } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) setState(() => _buscandoEndereco = false);
     }
   }
 
@@ -97,8 +67,53 @@ class _NovoClienteViewState extends State<NovoClienteView> {
     return null;
   }
 
+  Future<void> _salvar() async {
+    if (UserSession.loginId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sessão expirada. Faça login novamente.')),
+      );
+      return;
+    }
+
+    final ok = _formKey.currentState?.validate() ?? false;
+    if (!ok) return;
+
+    setState(() => _loading = true);
+    try {
+      final telefone = toNumericString(_telCtrl.text); // só dígitos
+      final cep = toNumericString(_cepCtrl.text);      // só dígitos
+
+      await _svc.criarCliente(
+        loginId: UserSession.loginId!,                    // <- vínculo com usuário logado
+        nome: _nomeCtrl.text.trim(),
+        telefone: telefone.isEmpty ? null : _telCtrl.text.trim(),
+        email: _emailCtrl.text.trim().isEmpty ? null : _emailCtrl.text.trim(),
+        cep: cep.isEmpty ? null : _cepCtrl.text.trim(),
+        rua: _ruaCtrl.text.trim().isEmpty ? null : _ruaCtrl.text.trim(),
+        numero: _numeroCtrl.text.trim().isEmpty ? null : _numeroCtrl.text.trim(),
+        tipoResidencia: _tipoResidencia,
+        complemento: _compCtrl.text.trim().isEmpty ? null : _compCtrl.text.trim(),
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cliente cadastrado com sucesso!')),
+      );
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao salvar: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final border = OutlineInputBorder(borderRadius: BorderRadius.circular(10));
+
     return Scaffold(
       appBar: AppBar(title: const Text('Novo Cliente')),
       body: Padding(
@@ -109,44 +124,50 @@ class _NovoClienteViewState extends State<NovoClienteView> {
             children: [
               TextFormField(
                 controller: _nomeCtrl,
-                decoration: const InputDecoration(labelText: 'Nome'),
-                validator: (v) => (v == null || v.trim().isEmpty)
-                    ? 'Informe o nome'
-                    : null,
+                decoration: InputDecoration(labelText: 'Nome', border: border),
+                validator: (v) => (v == null || v.trim().isEmpty) ? 'Informe o nome' : null,
               ),
               const SizedBox(height: 12),
+
               TextFormField(
                 controller: _telCtrl,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Telefone',
-                  hintText: '(DDD) XXXXX-XXXX',
+                  hintText: '(DD) 90000-0000',
+                  border: border,
                 ),
                 keyboardType: TextInputType.phone,
+                inputFormatters: [PhoneInputFormatter(defaultCountryCode: 'BR')],
                 validator: (v) {
-                  if (v == null || v.trim().isEmpty) {
-                    return 'Informe o telefone';
-                  }
-                  final digits = v.replaceAll(RegExp(r'\D'), '');
+                  if (v == null || v.trim().isEmpty) return 'Informe o telefone';
+                  final digits = toNumericString(v);
                   if (digits.length < 10) return 'Telefone inválido';
                   return null;
                 },
               ),
               const SizedBox(height: 12),
+
               TextFormField(
                 controller: _emailCtrl,
-                decoration: const InputDecoration(labelText: 'Email'),
+                decoration: InputDecoration(labelText: 'Email', border: border),
                 keyboardType: TextInputType.emailAddress,
                 validator: _validarEmail,
               ),
               const SizedBox(height: 12),
+
               TextFormField(
                 controller: _cepCtrl,
                 decoration: InputDecoration(
                   labelText: 'CEP',
+                  border: border,
                   suffixIcon: _buscandoEndereco
                       ? const Padding(
                     padding: EdgeInsets.all(10),
-                    child: CircularProgressIndicator(strokeWidth: 2),
+                    child: SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
                   )
                       : IconButton(
                     icon: const Icon(Icons.search),
@@ -154,46 +175,44 @@ class _NovoClienteViewState extends State<NovoClienteView> {
                   ),
                 ),
                 keyboardType: TextInputType.number,
+                inputFormatters: [MaskedInputFormatter('#####-###')],
                 onFieldSubmitted: (_) => _buscarEndereco(),
               ),
               const SizedBox(height: 12),
+
               TextFormField(
                 controller: _ruaCtrl,
-                decoration: const InputDecoration(labelText: 'Rua'),
+                decoration: InputDecoration(labelText: 'Rua', border: border),
                 readOnly: _buscandoEndereco,
               ),
               const SizedBox(height: 12),
+
               TextFormField(
                 controller: _numeroCtrl,
-                decoration: const InputDecoration(labelText: 'Número'),
+                decoration: InputDecoration(labelText: 'Número', border: border),
                 keyboardType: TextInputType.number,
               ),
               const SizedBox(height: 12),
 
-              /// 🔹 Dropdown de tipo de residência
               DropdownButtonFormField<String>(
                 value: _tipoResidencia,
-                decoration: const InputDecoration(
-                  labelText: 'Tipo de Residência',
-                ),
+                decoration: InputDecoration(labelText: 'Tipo de Residência', border: border),
                 items: const [
                   DropdownMenuItem(value: 'Casa', child: Text('Casa')),
                   DropdownMenuItem(value: 'Apartamento', child: Text('Apartamento')),
                 ],
                 onChanged: (v) => setState(() => _tipoResidencia = v),
-                validator: (v) =>
-                v == null ? 'Selecione o tipo de residência' : null,
+                validator: (v) => v == null ? 'Selecione o tipo de residência' : null,
               ),
-
               const SizedBox(height: 12),
 
-              /// 🔹 Campo de complemento (só se for apartamento)
               if (_tipoResidencia == 'Apartamento')
                 TextFormField(
                   controller: _compCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Complemento (Bloco / Torre / Apto)',
+                  decoration: InputDecoration(
+                    labelText: 'Complemento (Bloco/Torre/Apto)',
                     hintText: 'Ex: Bloco 2, Apto 304, Torre B...',
+                    border: border,
                   ),
                 ),
 
