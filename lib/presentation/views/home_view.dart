@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../app/routes/app_routes.dart';
 import '../../core/user_session.dart';
@@ -66,13 +67,48 @@ class _HomeViewState extends State<HomeView> {
     }
   }
 
+  /// 🔒 Exibe popup de confirmação antes de sair
+  Future<void> _confirmarSaida(BuildContext context) async {
+    final bool? confirmar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Sair do aplicativo'),
+        content: const Text('Deseja realmente sair e encerrar a sessão?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade600,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Sair'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar == true) {
+      _sair(context);
+    }
+  }
+
   void _sair(BuildContext context) {
     UserSession.clear();
+    _limparSessaoSalva();
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (_) => const LoginView()),
           (route) => false,
     );
+  }
+
+  Future<void> _limparSessaoSalva() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('user_session');
   }
 
   String _getPrimeiroNome(String? nome) {
@@ -95,7 +131,7 @@ class _HomeViewState extends State<HomeView> {
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'Sair',
-            onPressed: () => _sair(context),
+            onPressed: () => _confirmarSaida(context),
           ),
         ],
       ),
@@ -119,11 +155,11 @@ class _HomeViewState extends State<HomeView> {
           ),
           const SizedBox(height: 24),
 
-          /// 🔁 Dashboard independente com RefreshIndicator
+          /// 🔁 Dashboard com RefreshIndicator
           RefreshIndicator(
             onRefresh: _carregarDashboard,
             child: SizedBox(
-              height: 140, // garante espaço para o refresh puxando pra baixo
+              height: 140,
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 children: [
@@ -182,7 +218,6 @@ class _HomeViewState extends State<HomeView> {
 
           const SizedBox(height: 32),
 
-          // 📦 Cards principais
           _DashboardCard(
             title: 'Clientes',
             icon: Icons.people,
