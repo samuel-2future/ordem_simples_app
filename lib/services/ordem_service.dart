@@ -54,24 +54,29 @@ class OrdemService {
     final data = await _db
         .from('ordens_servico')
         .select('''
-          id,
-          login_id,
-          cliente_id,
-          tipo_servico,
-          descricao,
-          valor,
-          status,
-          assinatura_base64,
-          created_at,
-          updated_at,
-          clientes:clientes(id, nome, telefone, email)
-        ''')
+        id,
+        login_id,
+        cliente_id,
+        tipo_servico,
+        descricao,
+        valor,
+        status,
+        assinatura_base64,
+        assinante_nome,
+        assinante_funcao,
+        assinado_em,
+        concluido_em,
+        created_at,
+        updated_at,
+        clientes:clientes(id, nome, telefone, email)
+      ''')
         .eq('id', ordemId)
         .eq('login_id', loginId)
         .maybeSingle();
 
     return data == null ? null : Map<String, dynamic>.from(data);
   }
+
 
   Future<void> excluirOrdem({
     required int loginId,
@@ -84,21 +89,51 @@ class OrdemService {
         .eq('login_id', loginId);
   }
 
-  Future<void> atualizarStatusAssinado({
+  /// Assina a OS e marca status = 'Assinada'
+  Future<Map<String, dynamic>> atualizarStatusAssinado({
     required int loginId,
     required String ordemId,
-    required Uint8List assinatura,
+    required List<int> assinatura,
   }) async {
-    final base64Img = base64Encode(assinatura);
-
-    await _db
+    final base64Ass = base64Encode(assinatura);
+    final data = await _db
         .from('ordens_servico')
         .update({
-      'status': 'Assinado',
-      'assinatura_base64': base64Img,
+      'status': 'Assinada',
+      'assinatura_base64': base64Ass,
+      'assinado_em': DateTime.now().toIso8601String(),
       'updated_at': DateTime.now().toIso8601String(),
     })
         .eq('id', ordemId)
-        .eq('login_id', loginId);
+        .eq('login_id', loginId)
+        .select()
+        .single();
+    return Map<String, dynamic>.from(data);
   }
+
+  Future<Map<String, dynamic>> concluirOrdem({
+    required int loginId,
+    required String ordemId,
+    required String assinanteNome,
+    required String assinanteFuncao,
+  }) async {
+    final agora = DateTime.now().toIso8601String();
+
+    final data = await _db
+        .from('ordens_servico')
+        .update({
+      'status': 'Concluída',
+      'assinante_nome': assinanteNome,
+      'assinante_funcao': assinanteFuncao,
+      'concluido_em': agora,
+      'updated_at': agora,
+    })
+        .eq('id', ordemId)
+        .eq('login_id', loginId)
+        .select()
+        .single();
+
+    return Map<String, dynamic>.from(data);
+  }
+
 }
