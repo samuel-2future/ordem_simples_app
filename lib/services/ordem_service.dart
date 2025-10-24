@@ -51,26 +51,28 @@ class OrdemService {
     required int loginId,
     required String ordemId,
   }) async {
+// OrdemService.obterOrdemPorId
     final data = await _db
         .from('ordens_servico')
         .select('''
-        id,
-        login_id,
-        cliente_id,
-        tipo_servico,
-        descricao,
-        valor,
-        status,
-        assinatura_base64,
-        assinante_nome,
-        assinante_funcao,
-        assinado_em,
-        concluido_em,
-        created_at,
-        updated_at,
-        clientes:clientes(id, nome, telefone, email),
-        logins:logins(id, nome_empresa)
-      ''')
+      id,
+      login_id,
+      cliente_id,
+      tipo_servico,
+      descricao,
+      valor,
+      status,
+      assinatura_base64,
+      assinante_nome,
+      assinante_funcao,
+      assinado_em,
+      concluido_em,
+      created_at,
+      updated_at,
+      clientes:clientes(
+        id, nome, telefone, email, rua, numero, complemento
+      )
+    ''')
         .eq('id', ordemId)
         .eq('login_id', loginId)
         .maybeSingle();
