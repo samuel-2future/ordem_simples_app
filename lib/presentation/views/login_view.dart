@@ -164,19 +164,6 @@ class _LoginViewState extends State<LoginView> {
                   ),
                 ),
                 const SizedBox(height: 16),
-
-                // Link de recuperação
-                TextButton(
-                  onPressed: () {
-                    // TODO: tela de recuperação de senha
-                  },
-                  child: Text(
-                    'Esqueceu sua senha?',
-                    style: TextStyle(color: colorAccent),
-                  ),
-                ),
-                const SizedBox(height: 32),
-
                 // Rodapé
                 Text(
                   'Versão 1.0.0',

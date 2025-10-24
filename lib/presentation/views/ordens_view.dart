@@ -20,6 +20,11 @@ class _OrdensViewState extends State<OrdensView> {
   bool _loading = true;
   String? _error;
   List<Map<String, dynamic>> _ordens = [];
+  List<Map<String, dynamic>> _ordensFiltradas = [];
+
+  // 🔎 Filtros
+  DateTime? _dataSelecionada;
+  String? _statusSelecionado; // Aberta | Assinada | Concluída | Todas
 
   @override
   void initState() {
@@ -44,6 +49,9 @@ class _OrdensViewState extends State<OrdensView> {
         _ordens = data;
         _loading = false;
       });
+
+      // ✅ Sempre reaplica os filtros após buscar do banco
+      _aplicarFiltros();
     } catch (e, s) {
       debugPrint('❌ Erro ao carregar ordens: $e\n$s');
       setState(() {
@@ -53,15 +61,75 @@ class _OrdensViewState extends State<OrdensView> {
     }
   }
 
-  Future<void> _goToNovaOrdem() async {
-    final result = await Navigator.pushNamed(context, AppRoutes.novaOrdem);
-    if (!mounted) return;
-    if (result == true) {
-      await _loadOrdens(); // ✅ recarrega ao voltar
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Ordem criada com sucesso.')),
-      );
+  DateTime? _parseCreatedAt(dynamic raw) {
+    if (raw == null) return null;
+    try {
+      return DateTime.parse(raw.toString()).toLocal();
+    } catch (_) {
+      return null;
     }
+  }
+
+  String _normStatus(String? s) {
+    final v = (s ?? '').toLowerCase().trim();
+    if (v.startsWith('conclu')) return 'concluída';
+    if (v.startsWith('assina')) return 'assinada';
+    return 'aberta';
+  }
+
+  void _aplicarFiltros() {
+    List<Map<String, dynamic>> filtradas = List.from(_ordens);
+
+    // Filtro de data
+    if (_dataSelecionada != null) {
+      filtradas = filtradas.where((o) {
+        final d = _parseCreatedAt(o['created_at']);
+        if (d == null) return false;
+        return DateUtils.isSameDay(d, _dataSelecionada);
+      }).toList();
+    }
+
+    // Filtro de status (exceto "Todas")
+    if (_statusSelecionado != null &&
+        _statusSelecionado!.isNotEmpty &&
+        _statusSelecionado != 'Todas') {
+      final alvo = _normStatus(_statusSelecionado);
+      filtradas = filtradas.where((o) {
+        final status = _normStatus(o['status']?.toString());
+        return status == alvo;
+      }).toList();
+    }
+
+    setState(() => _ordensFiltradas = filtradas);
+  }
+
+  Future<void> _selecionarData() async {
+    final hoje = DateTime.now();
+    final selecionada = await showDatePicker(
+      context: context,
+      initialDate: _dataSelecionada ?? hoje,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(hoje.year + 1),
+      locale: const Locale('pt', 'BR'),
+    );
+    if (selecionada != null) {
+      setState(() => _dataSelecionada = selecionada);
+      _aplicarFiltros();
+    }
+  }
+
+  void _limparData() {
+    if (_dataSelecionada == null) return;
+    setState(() => _dataSelecionada = null);
+    _aplicarFiltros();
+  }
+
+  void _limparFiltros() {
+    setState(() {
+      _dataSelecionada = null;
+      _statusSelecionado = 'Todas';
+    });
+    _aplicarFiltros();
   }
 
   Future<void> _irParaDetalhe(String id) async {
@@ -69,91 +137,46 @@ class _OrdensViewState extends State<OrdensView> {
       MaterialPageRoute(builder: (_) => DetalheOrdemView(ordemId: id)),
     );
     if (!mounted) return;
-    await _loadOrdens(); // ✅ recarrega sempre que voltar do detalhe
+    await _loadOrdens();
   }
 
-  Future<void> _excluirOrdem(String id, String tituloSnack) async {
-    try {
-      await _svc.excluirOrdem(
-        loginId: UserSession.loginId!,
-        ordemId: id,
-      );
-
-      if (!mounted) return;
-      setState(() {
-        _ordens.removeWhere((o) => o['id'].toString() == id);
-      });
+  Future<void> _goToNovaOrdem() async {
+    final result = await Navigator.pushNamed(context, AppRoutes.novaOrdem);
+    if (!mounted) return;
+    if (result == true) {
+      await _loadOrdens();
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Ordem "$tituloSnack" excluída.')),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao excluir "$tituloSnack": $e')),
+        const SnackBar(content: Text('Ordem criada com sucesso.')),
       );
     }
   }
 
-  void _confirmExcluir(BuildContext context, {required String id, required String tituloSnack}) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Excluir ordem de serviço'),
-        content: Text('Tem certeza que deseja excluir a ordem "$tituloSnack"?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () async {
-              Navigator.pop(context);
-              await _excluirOrdem(id, tituloSnack);
-            },
-            child: const Text('Excluir'),
-          ),
-        ],
-      ),
-    );
-  }
-
   Color _statusColor(String status) {
-    switch (status.toLowerCase()) {
+    switch (_normStatus(status)) {
       case 'assinada':
         return Colors.blue;
       case 'concluída':
-      case 'concluido':
-      case 'concluida':
         return Colors.green;
-      default: // Aberta ou outros
+      default:
         return Colors.red;
     }
   }
 
   IconData _statusIcon(String status) {
-    switch (status.toLowerCase()) {
+    switch (_normStatus(status)) {
       case 'assinada':
         return Icons.edit_document;
       case 'concluída':
-      case 'concluido':
-      case 'concluida':
         return Icons.check_circle_outline;
-      default: // Aberta
+      default:
         return Icons.warning_amber_rounded;
     }
   }
 
   String _fmtData(dynamic iso) {
-    if (iso == null) return 'Sem data';
-    try {
-      return _dateFormat.format(DateTime.parse(iso.toString()).toLocal());
-    } catch (_) {
-      return 'Sem data';
-    }
+    final d = _parseCreatedAt(iso);
+    if (d == null) return 'Sem data';
+    return _dateFormat.format(d);
   }
 
   String _fmtValor(dynamic v) {
@@ -168,34 +191,34 @@ class _OrdensViewState extends State<OrdensView> {
 
   @override
   Widget build(BuildContext context) {
-    Widget body;
+    Widget listContent;
     if (_loading) {
-      body = const Center(child: CircularProgressIndicator());
+      listContent = const Center(child: CircularProgressIndicator());
     } else if (_error != null) {
-      body = Center(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Text(_error!, textAlign: TextAlign.center),
-        ),
-      );
-    } else if (_ordens.isEmpty) {
-      body = ListView(
+      listContent = Center(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text(_error!, textAlign: TextAlign.center),
+          ));
+    } else if (_ordensFiltradas.isEmpty) {
+      listContent = ListView(
         padding: const EdgeInsets.all(16),
         children: const [
           SizedBox(height: 120),
-          Center(child: Text('Nenhuma ordem cadastrada ainda.')),
+          Center(child: Text('Nenhuma ordem encontrada.')),
         ],
       );
     } else {
-      body = RefreshIndicator(
+      listContent = RefreshIndicator(
         onRefresh: _loadOrdens,
         child: ListView.builder(
           padding: const EdgeInsets.all(16),
-          itemCount: _ordens.length,
+          itemCount: _ordensFiltradas.length,
           itemBuilder: (context, index) {
-            final o = _ordens[index];
+            final o = _ordensFiltradas[index];
             final id = o['id'].toString();
-            final clienteNome = (o['clientes']?['nome'] ?? 'Cliente não informado').toString();
+            final clienteNome =
+            (o['clientes']?['nome'] ?? 'Cliente não informado').toString();
             final tipo = (o['tipo_servico'] ?? '—').toString();
             final status = (o['status'] ?? 'Aberta').toString();
             final valorFmt = _fmtValor(o['valor']);
@@ -212,12 +235,11 @@ class _OrdensViewState extends State<OrdensView> {
               elevation: 2,
               child: InkWell(
                 borderRadius: BorderRadius.circular(12),
-                onTap: () => _irParaDetalhe(id), // ✅ aguarda e recarrega ao voltar
+                onTap: () => _irParaDetalhe(id),
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Row(
                     children: [
-                      // ícone do status
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
@@ -227,8 +249,6 @@ class _OrdensViewState extends State<OrdensView> {
                         child: Icon(icone, color: cor, size: 28),
                       ),
                       const SizedBox(width: 16),
-
-                      // conteúdo do card
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -248,24 +268,27 @@ class _OrdensViewState extends State<OrdensView> {
                             const SizedBox(height: 4),
                             Row(
                               children: [
-                                Icon(Icons.calendar_month, size: 16, color: Colors.grey.shade600),
+                                Icon(Icons.calendar_month,
+                                    size: 16, color: Colors.grey.shade600),
                                 const SizedBox(width: 4),
                                 Text(
                                   data,
-                                  style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                                  style: TextStyle(
+                                    color: Colors.grey.shade700,
+                                    fontSize: 13,
+                                  ),
                                 ),
                               ],
                             ),
                           ],
                         ),
                       ),
-
-                      // status + valor
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Text(
-                            status,
+                            _normStatus(status)[0].toUpperCase() +
+                                _normStatus(status).substring(1),
                             style: TextStyle(
                               color: cor,
                               fontWeight: FontWeight.w600,
@@ -277,17 +300,6 @@ class _OrdensViewState extends State<OrdensView> {
                             style: const TextStyle(
                               fontWeight: FontWeight.w600,
                               fontSize: 15,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          IconButton(
-                            tooltip: 'Excluir',
-                            icon: const Icon(Icons.delete_outline),
-                            color: Colors.red.shade400,
-                            onPressed: () => _confirmExcluir(
-                              context,
-                              id: id,
-                              tituloSnack: tipo.isEmpty ? 'Ordem $id' : tipo,
                             ),
                           ),
                         ],
@@ -302,9 +314,101 @@ class _OrdensViewState extends State<OrdensView> {
       );
     }
 
+    final dataLabel = _dataSelecionada == null
+        ? 'Filtrar por data'
+        : DateFormat('dd/MM/yyyy').format(_dataSelecionada!);
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Ordens de Serviço')),
-      body: body,
+      appBar: AppBar(
+        title: const Text('Ordens de Serviço'),
+        actions: [
+          IconButton(
+            tooltip: 'Limpar filtros',
+            onPressed: _limparFiltros,
+            icon: const Icon(Icons.filter_alt_off),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          // 🎯 Barra de Filtros
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Row(
+              children: [
+                // Filtro de Data
+                Expanded(
+                  child: InkWell(
+                    onTap: _selecionarData,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        border:
+                        Border.all(color: Colors.grey.shade400, width: 1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.calendar_today,
+                              size: 18, color: Colors.grey),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              dataLabel,
+                              style: const TextStyle(fontSize: 14),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (_dataSelecionada != null)
+                            InkWell(
+                              onTap: _limparData,
+                              child: const Padding(
+                                padding: EdgeInsets.all(4.0),
+                                child: Icon(Icons.close,
+                                    size: 18, color: Colors.grey),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+
+                // Filtro de Status (agora com "Todas")
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    value: _statusSelecionado ?? 'Todas',
+                    hint: const Text('Status'),
+                    items: const [
+                      DropdownMenuItem(value: 'Todas', child: Text('Todas')),
+                      DropdownMenuItem(value: 'Aberta', child: Text('Aberta')),
+                      DropdownMenuItem(value: 'Assinada', child: Text('Assinada')),
+                      DropdownMenuItem(value: 'Concluída', child: Text('Concluída')),
+                    ],
+                    onChanged: (v) {
+                      setState(() => _statusSelecionado = v);
+                      _aplicarFiltros();
+                    },
+                    decoration: InputDecoration(
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 0),
+          Expanded(child: listContent),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _goToNovaOrdem,
         icon: const Icon(Icons.add, color: Colors.white),

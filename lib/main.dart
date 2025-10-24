@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:ordem_simples_app/presentation/views/login_view.dart';
@@ -10,7 +11,8 @@ import 'app/variaveis/globais.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await initializeDateFormatting('pt_BR');
+  // ✅ Corrige a assinatura: 2 argumentos (locale, data)
+  await initializeDateFormatting('pt_BR', null);
   Intl.defaultLocale = 'pt_BR';
 
   final variaveis = Globais();
@@ -33,7 +35,18 @@ class OrdemSimplesApp extends StatelessWidget {
       theme: AppTheme.lightTheme,
       routes: AppRoutes.routes,
       debugShowCheckedModeBanner: false,
-      home: const LoginView(), // 👍 pode ser const
+      locale: const Locale('pt', 'BR'),
+      supportedLocales: const [
+        Locale('pt', 'BR'),
+        Locale('en', 'US'),
+      ],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+
+      home: const LoginView(),
     );
   }
 }

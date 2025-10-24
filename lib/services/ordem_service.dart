@@ -68,7 +68,8 @@ class OrdemService {
         concluido_em,
         created_at,
         updated_at,
-        clientes:clientes(id, nome, telefone, email)
+        clientes:clientes(id, nome, telefone, email),
+        logins:logins(id, nome_empresa)
       ''')
         .eq('id', ordemId)
         .eq('login_id', loginId)
@@ -76,6 +77,7 @@ class OrdemService {
 
     return data == null ? null : Map<String, dynamic>.from(data);
   }
+
 
 
   Future<void> excluirOrdem({
