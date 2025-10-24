@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class OrdemService {
@@ -27,26 +29,22 @@ class OrdemService {
     return Map<String, dynamic>.from(data);
   }
 
-  Future<List<Map<String, dynamic>>> listarOrdens() async {
+  Future<List<Map<String, dynamic>>> listarOrdensDoLogin(int loginId) async {
     final data = await _db
         .from('ordens_servico')
-        .select(
-      'id, tipo_servico, descricao, valor, status, created_at, clientes(nome)',
-    )
+        .select('''
+          id,
+          tipo_servico,
+          descricao,
+          valor,
+          status,
+          created_at,
+          clientes (nome)
+        ''')
+        .eq('login_id', loginId)
         .order('created_at', ascending: false);
 
     return List<Map<String, dynamic>>.from(data);
-  }
-
-  Future<void> excluirOrdem({
-    required int loginId,
-    required String ordemId,
-  }) async {
-    await Supabase.instance.client
-        .from('ordens_servico')
-        .delete()
-        .eq('id', ordemId)
-        .eq('login_id', loginId);
   }
 
   Future<Map<String, dynamic>?> obterOrdemPorId({
@@ -63,6 +61,7 @@ class OrdemService {
           descricao,
           valor,
           status,
+          assinatura_base64,
           created_at,
           updated_at,
           clientes:clientes(id, nome, telefone, email)
@@ -74,47 +73,32 @@ class OrdemService {
     return data == null ? null : Map<String, dynamic>.from(data);
   }
 
-  Future<Map<String, dynamic>> atualizarOrdem({
+  Future<void> excluirOrdem({
     required int loginId,
     required String ordemId,
-    String? tipoServico,
-    String? descricao,
-    double? valor,
-    String? status,
   }) async {
-    final payload = <String, dynamic>{
-      if (tipoServico != null) 'tipo_servico': tipoServico,
-      if (descricao != null) 'descricao': descricao,
-      if (valor != null) 'valor': valor,
-      if (status != null) 'status': status,
-    };
-
-    final data = await _db
+    await _db
         .from('ordens_servico')
-        .update(payload)
+        .delete()
         .eq('id', ordemId)
-        .eq('login_id', loginId)
-        .select()
-        .single();
-
-    return Map<String, dynamic>.from(data);
+        .eq('login_id', loginId);
   }
 
-  Future<List<Map<String, dynamic>>> listarOrdensDoLogin(int loginId) async {
-    final data = await _db
-        .from('ordens_servico')
-        .select('''
-        id,
-        tipo_servico,
-        descricao,
-        valor,
-        status,
-        created_at,
-        clientes (nome)
-      ''')
-        .eq('login_id', loginId)
-        .order('created_at', ascending: false);
+  Future<void> atualizarStatusAssinado({
+    required int loginId,
+    required String ordemId,
+    required Uint8List assinatura,
+  }) async {
+    final base64Img = base64Encode(assinatura);
 
-    return List<Map<String, dynamic>>.from(data);
+    await _db
+        .from('ordens_servico')
+        .update({
+      'status': 'Assinado',
+      'assinatura_base64': base64Img,
+      'updated_at': DateTime.now().toIso8601String(),
+    })
+        .eq('id', ordemId)
+        .eq('login_id', loginId);
   }
 }

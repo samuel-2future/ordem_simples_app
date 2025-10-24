@@ -20,7 +20,6 @@ class _AssinaturaViewState extends State<AssinaturaView> {
   @override
   void initState() {
     super.initState();
-    // Forçar orientação horizontal
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.landscapeLeft,
       DeviceOrientation.landscapeRight,
@@ -29,7 +28,6 @@ class _AssinaturaViewState extends State<AssinaturaView> {
 
   @override
   void dispose() {
-    // Voltar para orientação normal
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
       DeviceOrientation.portraitDown,
@@ -42,10 +40,7 @@ class _AssinaturaViewState extends State<AssinaturaView> {
     if (_controller.isNotEmpty) {
       final Uint8List? data = await _controller.toPngBytes();
       if (data != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Assinatura salva com sucesso!')),
-        );
-        Navigator.pop(context);
+        Navigator.pop(context, data); // ✅ retorna assinatura
       }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
