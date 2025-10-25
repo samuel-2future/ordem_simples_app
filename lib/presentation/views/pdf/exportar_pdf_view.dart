@@ -3,13 +3,14 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:ordem_simples_app/model/empresa_model.dart';
+import 'package:ordem_simples_app/services/empresa/empresa_service.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
 import '../../../core/user_session.dart';
 
 class ExportarPdfView extends StatefulWidget {
@@ -31,6 +32,29 @@ class _ExportarPdfViewState extends State<ExportarPdfView> {
     _pdfFuture = _gerarPdf();
   }
 
+  Future<String> montarEmpresaPrestadoraMensagem() async {
+    final svc = EmpresaService();
+    final id = UserSession.empresaId;
+
+    if (id == null || id.isEmpty) {
+      return 'Empresa não vinculada à sessão.';
+    }
+
+    final empresa = await svc.buscarPorId(id);
+    if (empresa == null) {
+      return 'Empresa não encontrada ou sem permissão de leitura.';
+    }
+
+    final partes = <String>[
+      empresa.nomeEmpresa,
+      '${empresa.endereco} - ${empresa.estado}',
+      if ((empresa.telefone ?? '').trim().isNotEmpty) (empresa.telefone!).trim(),
+    ];
+
+    return partes.join(' | ');
+  }
+
+
   PdfColor _lighten(PdfColor color, [double amount = 0.85]) {
     return PdfColor(
       1 - (1 - color.red) * amount,
@@ -47,27 +71,6 @@ class _ExportarPdfViewState extends State<ExportarPdfView> {
       return '—';
     }
   }
-
-  Future<String?> _buscarMinhaEmpresa(dynamic id) async {
-    try {
-      final int? loginId = (id is int)
-          ? id
-          : int.tryParse(id?.toString() ?? '');
-      if (loginId == null) return null;
-
-      final res = await Supabase.instance.client
-          .from('logins')
-          .select('nome_empresa')
-          .eq('id', loginId)
-          .maybeSingle();
-
-      return res?['nome_empresa'] as String?;
-    } catch (e) {
-      debugPrint('Erro ao buscar empresa: $e');
-      return null;
-    }
-  }
-
 
   Future<Map<String, dynamic>?> _buscarCliente(String id) async {
     try {
@@ -93,7 +96,7 @@ class _ExportarPdfViewState extends State<ExportarPdfView> {
     final doc = pw.Document();
 
     final empresa = 'Ordem de Serviço';
-    final empresaPrestadora = (o['logins']?['nome_empresa'] ?? UserSession.nomeEmpresa ?? '—').toString();
+    final empresaPrestadora = await montarEmpresaPrestadoraMensagem();
 
     final id = o['id']?.toString() ?? '—';
     final clienteNome = cliente?['nome'] ?? '—';
@@ -161,7 +164,7 @@ class _ExportarPdfViewState extends State<ExportarPdfView> {
                   ),
                   pw.SizedBox(height: 2),
                   pw.Text(
-                    'Prestado por: $empresaPrestadora',
+                    '$empresaPrestadora',
                     style: pw.TextStyle(
                       fontSize: 11,
                       color: PdfColors.grey700,

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:ordem_simples_app/presentation/views/assinaturas_view.dart';
-import '../../presentation/views/splash_view.dart';
 import '../../presentation/views/home_view.dart';
 import '../../presentation/views/clientes_view.dart';
 import '../../presentation/views/novo_cliente_view.dart';

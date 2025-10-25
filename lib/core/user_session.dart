@@ -1,14 +1,19 @@
+// user_session.dart
+import '../../model/login_model.dart';
+
 class UserSession {
   static int? loginId;
   static String? email;
   static String? nomeCompleto;
   static String? nomeEmpresa;
+  static String? empresaId;
 
-  static void fromMap(Map<String, dynamic> user) {
-    loginId      = (user['id'] as num).toInt();
-    email        = user['email'] as String?;
-    nomeCompleto = user['nome_completo'] as String?;
-    nomeEmpresa  = user['nome_empresa'] as String?;
+  static void fromLoginModel(LoginModel user) {
+    loginId      = user.id;
+    email        = user.email;
+    nomeCompleto = user.nomeCompleto;
+    nomeEmpresa  = user.empresa?.nomeEmpresa; // vem do objeto
+    empresaId    = user.empresaId;
   }
 
   static void clear() {
@@ -16,5 +21,6 @@ class UserSession {
     email = null;
     nomeCompleto = null;
     nomeEmpresa = null;
+    empresaId = null;
   }
 }

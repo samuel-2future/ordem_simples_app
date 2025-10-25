@@ -1,10 +1,11 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:ordem_simples_app/services/empresa/empresa_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ordem_simples_app/presentation/views/home_view.dart';
-
 import '../../core/user_session.dart';
-import '../../services/login_service.dart';
+import '../../model/login_model.dart';
+import '../../services/login/login_service.dart';
 
 class LoginView extends StatefulWidget {
   const LoginView({super.key});
@@ -33,11 +34,10 @@ class _LoginViewState extends State<LoginView> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final userJson = prefs.getString('user_session');
-
       if (userJson != null) {
-        final Map<String, dynamic> userMap = jsonDecode(userJson);
-        // popula a sessão global com o que foi salvo
-        UserSession.fromMap(userMap);
+        final saved = LoginModel.fromJson(userJson);
+        UserSession.fromLoginModel(saved);
+
         if (!mounted) return;
         Navigator.pushReplacement(
           context,
@@ -46,16 +46,15 @@ class _LoginViewState extends State<LoginView> {
         return;
       }
     } catch (e) {
-      // se falhar, apenas segue para a tela de login
       debugPrint('Falha ao recuperar sessão salva: $e');
     } finally {
       if (mounted) setState(() => _verificandoLogin = false);
     }
   }
 
-  Future<void> _salvarSessao(Map<String, dynamic> user) async {
+  Future<void> _salvarSessao(LoginModel user) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('user_session', jsonEncode(user));
+    await prefs.setString('user_session', user.toJson()); // usa toJson() do modelo
   }
 
   Future<void> _limparSessaoSalva() async {
@@ -72,7 +71,7 @@ class _LoginViewState extends State<LoginView> {
     }
 
     final service = LoginService();
-    // ❌ não chamar UserSession.clear() aqui — isso quebrava o auto-login
+    final serviceEmpresa = EmpresaService();
 
     return Scaffold(
       backgroundColor: Colors.grey[100],
@@ -84,7 +83,6 @@ class _LoginViewState extends State<LoginView> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Logo / Ícone
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -96,7 +94,6 @@ class _LoginViewState extends State<LoginView> {
                 ),
                 const SizedBox(height: 20),
 
-                // Nome do app
                 Text(
                   'Ordem Simples',
                   textAlign: TextAlign.center,
@@ -131,8 +128,6 @@ class _LoginViewState extends State<LoginView> {
                   },
                 ),
                 const SizedBox(height: 18),
-
-                // Senha
                 TextFormField(
                   controller: _senhaCtrl,
                   obscureText: _obscure,
@@ -165,7 +160,6 @@ class _LoginViewState extends State<LoginView> {
                 ),
                 const SizedBox(height: 8),
 
-                // Manter conectado
                 CheckboxListTile(
                   value: _manterConectado,
                   onChanged: (v) =>
@@ -175,7 +169,6 @@ class _LoginViewState extends State<LoginView> {
                 ),
                 const SizedBox(height: 8),
 
-                // Botão principal
                 SizedBox(
                   height: 52,
                   child: ElevatedButton(
@@ -197,14 +190,20 @@ class _LoginViewState extends State<LoginView> {
                         ),
                       );
 
-                      final user = await service.autenticar(
-                        email: _emailCtrl.text.trim(),
-                        senha: _senhaCtrl.text.trim(),
-                      );
+                      try {
+                        final LoginModel? user = await service.autenticarTyped(
+                          email: _emailCtrl.text.trim(),
+                          senha: _senhaCtrl.text.trim(),
+                        );
 
-                      if (user != null) {
-                        // popula a sessão global usada no app
-                        UserSession.fromMap(user);
+                        if (user == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('E-mail ou senha incorretos')),
+                          );
+                          return;
+                        }
+
+                        UserSession.fromLoginModel(user);
 
                         if (_manterConectado) {
                           await _salvarSessao(user);
@@ -218,10 +217,19 @@ class _LoginViewState extends State<LoginView> {
                           MaterialPageRoute(builder: (_) => const HomeView()),
                               (route) => false,
                         );
-                      } else {
+                      } catch (e) {
+                        final msg = e.toString();
+                        final offline =
+                            msg.contains('SocketException') || msg.contains('Failed host lookup');
+
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content: Text('E-mail ou senha incorretos')),
+                          SnackBar(
+                            content: Text(
+                              offline
+                                  ? 'Sem conexão com o Supabase. Verifique sua internet e tente novamente.'
+                                  : 'Erro ao autenticar: $e',
+                            ),
+                          ),
                         );
                       }
                     },
@@ -234,7 +242,6 @@ class _LoginViewState extends State<LoginView> {
                 ),
                 const SizedBox(height: 16),
 
-                // Rodapé
                 Text(
                   'Versão 1.0.0',
                   textAlign: TextAlign.center,

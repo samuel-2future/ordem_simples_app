@@ -11,7 +11,6 @@ import 'app/variaveis/globais.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // ✅ Corrige a assinatura: 2 argumentos (locale, data)
   await initializeDateFormatting('pt_BR', null);
   Intl.defaultLocale = 'pt_BR';
 
